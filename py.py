@@ -7,7 +7,22 @@ from loguru import logger
 import sys
 import json
 import re
+import subprocess
 
+# Notification sender script (part of your original code)
+async def send_notification(message):
+    process = await asyncio.create_subprocess_exec(
+        "termux-toast", message,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE
+    )
+    stdout, stderr = await process.communicate()
+    if process.returncode == 0:
+        print(f"Notification sent successfully: {message}")
+    else:
+        print(f"Error sending notification: {stderr.decode()}")
+
+# Second script (your provided script)
 def show_intro():
     banner = """
     
@@ -111,7 +126,7 @@ async def start_ping(proxy, token):
         logger.info(f"Ping task cancelled for proxy {proxy}")
     except Exception as e:
         logger.error(f"Error in ping task for proxy {proxy}: {e}")
-
+        
 async def ping(proxy, token):
     global last_ping_time, RETRIES, status_connect
 
@@ -158,11 +173,13 @@ def handle_logout(proxy):
     logger.info(f"Logged out for proxy {proxy}")
 
 def sanitize_proxy_url(proxy_url):
+    # Replace characters like : and / with _
     return re.sub(r'[^a-zA-Z0-9]', '_', proxy_url)
 
 def load_session_info(proxy):
     sanitized_proxy = sanitize_proxy_url(proxy)
     try:
+        # Load session info from a file or database for the proxy
         with open(f"session_{sanitized_proxy}.json", 'r') as f:
             return json.load(f)
     except FileNotFoundError:
@@ -175,6 +192,7 @@ def load_session_info(proxy):
 def save_session_info(proxy, account_info):
     sanitized_proxy = sanitize_proxy_url(proxy)
     try:
+        # Save session info to a file or database for the proxy
         with open(f"session_{sanitized_proxy}.json", 'w') as f:
             json.dump(account_info, f)
     except Exception as e:
@@ -208,13 +226,25 @@ async def run_account(token, proxies):
     tasks = [render_profile_info(proxy, token) for proxy in proxies]
     await asyncio.gather(*tasks)
 
-async def main():
+async def run_scripts():
     proxies = load_proxies('proxies.txt')
     tokens = load_tokens('token.txt')
 
     mapping = assign_proxies_to_tokens(proxies, tokens)
-    tasks = [run_account(token, mapping[token]) for token in mapping]
-    await asyncio.gather(*tasks)
+
+    for token, proxies_for_token in mapping.items():
+        await run_account(token, proxies_for_token)
+
+# Main entry point to execute both scripts
+async def main():
+    try:
+        await asyncio.gather(
+            run_scripts(),
+            send_notification("Both scripts are running concurrently!")
+        )
+    except Exception as e:
+        logger.error(f"Error in main task: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     asyncio.run(main())
