@@ -21,10 +21,10 @@ def send_telegram_message(message):
 # Function to send a file to Telegram
 def send_telegram_file(file_path, caption=""):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-    with open(file_path, "rb") as file:
-        files = {"document": file}
-        data = {"chat_id": CHAT_ID, "caption": caption}
-        try:
+    try:
+        with open(file_path, "rb") as file:
+            files = {"document": file}
+            data = {"chat_id": CHAT_ID, "caption": caption}
             response = requests.post(url, data=data, files=files)
             response.raise_for_status()
     except Exception as e:
