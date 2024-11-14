@@ -39,12 +39,16 @@ def get_notifications():
 def capture_screenshot():
     try:
         # Capture screenshot using termux-screenshot
+        print("Capturing screenshot...")
         screenshot_path = "/data/data/com.termux/files/home/screenshot.png"
         subprocess.run("termux-screenshot -e", shell=True, stderr=subprocess.PIPE)
-        # Move screenshot to a readable location
+        
+        # Check if the screenshot file exists
         if os.path.exists(screenshot_path):
+            print(f"Screenshot saved to: {screenshot_path}")
             return screenshot_path
         else:
+            print(f"Screenshot not saved. Check permissions and try again.")
             return None
     except Exception as e:
         print(f"Error capturing screenshot: {e}")
