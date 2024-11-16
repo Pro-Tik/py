@@ -118,9 +118,14 @@ def main():
             command = input("Enter command (/get to resend all screenshots): ").strip()
             if command == "/get":
                 handle_get_command()
+            
+            # Wait before checking again
+            time.sleep(2)  # Check every 2 seconds to see if online
+
         else:
-            print("Device is offline. Pausing and checking every 5 minutes...")
-            time.sleep(300)  # Check every 5 minutes
+            print("Device is offline. Checking every 2 seconds...")
+            # Wait for 2 seconds before checking again
+            time.sleep(2)
 
 if __name__ == "__main__":
     main()
